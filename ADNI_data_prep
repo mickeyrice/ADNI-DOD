@@ -7,6 +7,8 @@ output:
     toc: yes
     df_print: paged
 ---
+# Created by Mickey Rice on 4/10/2025
+# Updated 4/14/2025
 
 ```{r}
 library(psych)
@@ -132,12 +134,12 @@ print(race_counts)
 ethnicity_table <- demo_filtered %>%
   count(ethnicity) %>%  # Count occurrences
   mutate(percentage = n / sum(n) * 100) %>%  # Calculate percentages
-  arrange(desc(n))  # Optional: order by count, largest to smallest
+  arrange(desc(n))  # Order by count, largest to smallest
 
 race_table <- demo_filtered %>%
   count(race) %>%  # Count occurrences
   mutate(percentage = n / sum(n) * 100) %>%  # Calculate percentages
-  arrange(desc(n))  # Optional: order by count, largest to smallest
+  arrange(desc(n))  # Order by count, largest to smallest
 ```
 
 # Figure out how PTSD was categorized in the final ADNI data set
@@ -273,7 +275,7 @@ typeof(moca_scored$USERDATE)  # Gives low-level type info (e.g., "character")
 str(moca_scored$USERDATE)     # Shows structure and a preview of values
 
 head(moca_scored$USERDATE)    # First 6 values
-unique(moca_scored$USERDATE)  # All unique values (or sample of them)
+unique(moca_scored$USERDATE)  
 
 # First, filter your raw MOCA scores to match SCRNOs in ADNI
 moca_filtered <- moca_scored %>%
@@ -282,7 +284,7 @@ moca_filtered <- moca_scored %>%
   group_by(SCRNO) %>%
   slice_head(n = 1) %>%                # take first observation per SCRNO
   ungroup() %>%
-  select(SCRNO, raw_total_score)       # just keep what you need
+  select(SCRNO, raw_total_score)       
 
 # Now pull only the SCRNO and MOCA columns from the final dataset
 adni_moca <- ADNI %>%
