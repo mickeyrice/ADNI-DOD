@@ -1,2 +1,4 @@
 # ADNI-DOD
 Using the publicly available data set (ADNI DOD) to examine how neuropsychological and CSF biomarkers predict ADAS and MOCA scores.
+
+The aim of this study is to establish a relationship between psychological, environmental, and biological risk-factor variables on two widely implemented cognitive decline and dementia assessment screener scores, the Montreal Cognitive Assessment (MOCA) and the Alzheimer’s Disease Assessment Scale (ADAS). Statistical analysis will be conducted on a data set obtained from the ADNI-DOD database. Using decision trees constructed with Classification and Regression Trees (CART) methodology, we will examine trends in assessment screener scores and risk-factor presentation interactions. Our analyses will elucidate the detection of risk-factor patterns between the MOCA and ADAS, detecting novel and overlapping risk-factor characteristics common in older adults with normal and mildly declining cognition.
