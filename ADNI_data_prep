@@ -1,0 +1,371 @@
+---
+title: "ADNI"
+output: 
+  html_notebook:
+    toc: yes
+  html_document:
+    toc: yes
+    df_print: paged
+---
+
+```{r}
+library(psych)
+library(tidyverse)
+```
+
+```{r}
+ADNI <- read_csv("adni.csv")
+demo <- read_csv("PTDEMOG_10Apr2025.csv")
+CAPSc <- read_csv("CAPSCURR_10Apr2025.csv")
+CAPSl <- read_csv("CAPSLIFE_10Apr2025.csv")
+moca <- read_csv("MOCA_10Apr2025.csv")
+ptsd <- read_csv("PTSDELG_11Apr2025.csv")
+adas <- read_csv("ADAS_14Apr2025.csv")
+csf <- read_csv("UPENNBIOMK_DOD_2017_14Apr2025.csv")
+```
+# Combine datasets 
+```{r}
+# Check class
+sapply(list(ADNI = ADNI$SCRNO, demo = demo$SCRNO, CAPSl = CAPSl$SCRNO, CAPSc = CAPSc$SCRNO, moca = moca$SCRNO, ptsd = ptsd$SCRNO), class)
+
+head(unique(ADNI$SCRNO))
+head(unique(demo$SCRNO))
+
+# Remove extra spaces and leading zeros
+ADNI$SCRNO <- trimws(ADNI$SCRNO)
+demo$SCRNO <- trimws(demo$SCRNO)
+CAPSl$SCRNO <- trimws(CAPSl$SCRNO)
+CAPSc$SCRNO <- trimws(CAPSc$SCRNO)
+moca$SCRNO <- trimws(moca$SCRNO)
+ptsd$SCRNO <- trimws(ptsd$SCRNO)
+adas$SCRNO <- trimws(adas$SCRNO)
+csf$SCRNO <- trimws(csf$SCRNO)
+
+ADNI$SCRNO <- sub("^0+", "", ADNI$SCRNO)
+demo$SCRNO <- sub("^0+", "", demo$SCRNO)
+CAPSl$SCRNO <- sub("^0+", "", CAPSl$SCRNO)
+CAPSc$SCRNO <- sub("^0+", "", CAPSc$SCRNO)
+moca$SCRNO <- sub("^0+", "", moca$SCRNO)
+ptsd$SCRNO <- sub("^0+", "", ptsd$SCRNO)
+adas$SCRNO <- sub("^0+", "", adas$SCRNO)
+csf$SCRNO <- sub("^0+", "", csf$SCRNO)
+
+# Make them the same!
+ADNI$SCRNO <- as.character(ADNI$SCRNO)
+demo$SCRNO <- as.character(demo$SCRNO)
+CAPSl$SCRNO <- as.character(CAPSl$SCRNO)
+CAPSc$SCRNO <- as.character(CAPSc$SCRNO)
+moca$SCRNO <- as.character(moca$SCRNO)
+ptsd$SCRNO <- as.character(ptsd$SCRNO)
+adas$SCRNO <- as.character(adas$SCRNO)
+csf$SCRNO <- as.character(csf$SCRNO)
+
+demo_filtered <- demo %>% filter(SCRNO %in% ADNI$SCRNO)
+CAPSl_filtered <- CAPSl %>% filter(SCRNO %in% ADNI$SCRNO)
+CAPSc_filtered <- CAPSc %>% filter(SCRNO %in% ADNI$SCRNO)
+ptsd_filtered <- ptsd %>% filter(SCRNO %in% ADNI$SCRNO)
+```
+
+# Count ADAS from final ADNI data
+```{r}
+# Define your score range
+no_lower_bound <- 0
+no_upper_bound <- 14
+
+mild_lb <- 15
+mild_ub <- 29
+
+ad_lb <- 30
+ad_ub <- 85
+
+# Count how many users fall within the range
+count_in_range1 <- ADNI %>%
+  filter(ADAS >= no_lower_bound & ADAS <= no_upper_bound) %>%
+  nrow()
+
+count_in_range2 <- ADNI %>%
+  filter(ADAS >= mild_lb & ADAS <= mild_ub) %>%
+  nrow()
+
+count_in_range3 <- ADNI %>%
+  filter(ADAS >= ad_lb & ADAS <= ad_lb) %>%
+  nrow()
+
+# Print the count
+print(count_in_range1)
+print(count_in_range2)
+print(count_in_range3)
+
+count_in_range1/97
+count_in_range2/97
+count_in_range3/97
+```
+
+# Count TBI from final ADNI data
+```{r}
+ADNI %>%
+  count(TBI)
+```
+
+# Demographics from demo dataset - cross referenced with final ADNI data set
+```{r}
+# Get demographics!
+describe(demo_filtered)
+
+# Recode race and ethnicity 
+demo_filtered <- demo_filtered %>%
+  mutate(
+    race = recode(PTRACCAT, `1` = "American Indian or Alaskan Native", `2` = "Asian", `3` = "Native Hawaiian or Other Pacific Islander", `4` = "Black or African American",
+                  `5` = "White", `6` = "More than one race", `7` = "Unknown"),
+    ethnicity = recode(PTETHCAT, `1` = "Latino", `2` = "White", `3` = "UnKnown")
+  )
+
+ethnicity_counts <- demo_filtered %>%
+  count(ethnicity)
+print(ethnicity_counts)
+
+race_counts <- demo_filtered %>%
+  count(race)
+print(race_counts)
+
+# Makes tables to help with readability!
+ethnicity_table <- demo_filtered %>%
+  count(ethnicity) %>%  # Count occurrences
+  mutate(percentage = n / sum(n) * 100) %>%  # Calculate percentages
+  arrange(desc(n))  # Optional: order by count, largest to smallest
+
+race_table <- demo_filtered %>%
+  count(race) %>%  # Count occurrences
+  mutate(percentage = n / sum(n) * 100) %>%  # Calculate percentages
+  arrange(desc(n))  # Optional: order by count, largest to smallest
+```
+
+# Figure out how PTSD was categorized in the final ADNI data set
+## PTSD measured by Psychological Evaluation/PTSD Verification
+```{r}
+# Recode PTSD 
+ptsd_filtered <- ptsd_filtered %>%
+  mutate(
+    ptsd_diagnosis = recode(PTSDCRIT, `1` = "Meets PTSD negative criteria", 
+                            `2` = "Meets PTSD positive criteria"))
+    
+ptsd_counts <- ptsd_filtered %>%
+  count(ptsd_diagnosis)
+print(ptsd_counts)
+```
+
+
+# Try using ADAS for exclusionary criteria
+```{r}
+adas_clean <- adas %>%
+  filter(!is.na(TOTAL13)) %>%         # remove missing TOTAL13 scores
+  filter(TOTAL13 > 9) %>%             # exclude scores ≤ 9
+  arrange(SCRNO, USERDATE) %>%        # sort by SCRNO and USERDATE
+  group_by(SCRNO) %>%
+  slice_head(n = 1) %>%               # keep first date per SCRNO
+  ungroup()
+
+n_participants <- nrow(adas_clean)
+print(n_participants)
+
+# (Nasreddine et al., 2005). Participants were excluded for potential confounding variables, such as psychotic illness, substance abuse, or discomfort with the required MRI testing and lumbar puncture (Weiner et al., 2014)
+
+adas_final <- adas_clean %>%
+  left_join(ptsd %>% select(SCRNO, EXCLUSION), by = "SCRNO") %>%
+  filter(is.na(EXCLUSION) | EXCLUSION != 1)
+n_final <- nrow(adas_final)
+print(n_final)
+
+## Cross reference with participants who have CSF data
+# Step 1: Filter CSF to only first RUNDATE per SCRNO
+csf_first <- csf %>%
+  arrange(SCRNO, RUNDATE) %>%                  # Ensure dates are in order
+  group_by(SCRNO) %>%
+  slice(1) %>%                                  # Keep first date per participant
+  ungroup() %>%
+  select(SCRNO, RUNDATE, ABETA, AB40, TAU, PTAU, AB4240)  # Keep only relevant columns
+
+# Step 2: Join to ADAS data
+adas_with_csf <- adas_final %>%
+  left_join(csf_first, by = "SCRNO") %>%
+  filter(
+    !is.na(ABETA),
+    !is.na(AB40),
+    !is.na(TAU),
+    !is.na(PTAU),
+    !is.na(AB4240)
+  )
+
+nrow(adas_with_csf)
+```
+
+
+# Figure out how to calculate MOCA scores to check exclusion criteria
+### How did we get the final ADNI data set?
+```{r}
+# Check MOCA info 
+# Join education data
+moca_with_edu <- moca %>%
+  left_join(select(demo, SCRNO, PTEDUCAT), by = "SCRNO")
+
+# Create the MOCA total score
+moca_scored <- moca %>%
+  mutate(
+    # Serial 7s: max of 3
+    serial_7s_score = pmin(SERIAL1 + SERIAL2 + SERIAL3 + SERIAL4 + SERIAL5, 3),
+
+    # Letters: 1 point if ≤1 error
+    letters_score = if_else(LETTERS <= 1, 1, 0),
+
+    # F fluency: 1 point if ≥11
+    ffluency_score = if_else(FFLUENCY >= 11, 1, 0),
+
+    # Compute domain scores (excluding delayed recall!)
+    visuospatial_score = TRAILS + CUBE + CLOCKCON + CLOCKNO + CLOCKHAN,
+    naming_score = LION + RHINO + CAMEL,
+    attention_score = DIGFOR + DIGBACK + letters_score + serial_7s_score,
+    lang_score = REPEAT1 + REPEAT2 + ffluency_score,
+    abstraction_score = ABSTRAN + ABSMEAS,
+    orientation_score = DATE + MONTH + YEAR + DAY + PLACE + CITY,
+    .keep = "all"
+)
+
+moca_scored <- moca_scored %>%
+  mutate(
+    
+    # Sum total (out of 30) — excluding memory_score
+    raw_total_score = visuospatial_score + naming_score + attention_score +
+                      lang_score + abstraction_score + orientation_score)
+    
+describe(moca_scored$raw_total_score)
+
+selected_subjects <- moca_scored %>%
+  filter(SCRNO %in% c("6315"))
+print(selected_subjects$raw_total_score)
+
+
+# moca_total %>%
+ # summarise(
+#    max_base = max(base_score, na.rm = TRUE),
+#    max_attention = max(attention_score, na.rm = TRUE),
+#    max_digit = max(digit_score, na.rm = TRUE),
+#    max_serial = max(serial_score, na.rm = TRUE),
+#    max_fluency = max(fluency_score, na.rm = TRUE),
+#    max_recall = max(delayed_recall_score, na.rm = TRUE),
+#    max_edu = max(education_point, na.rm = TRUE)
+#  )
+
+# Define only the raw MOCA item columns
+#moca_items <- c(
+  #"TRAILS", "CUBE", "CLOCKCON", "CLOCKNO", "CLOCKHAN",  
+  #"LION", "RHINO", "CAMEL", "DIGFOR", "DIGBACK", "LETTER",
+  #"SERIAL1", "SERIAL2", "SERIAL3", "SERIAL4", "SERIAL5", 
+  #"REPEAT1", "REPEAT2", "FFLUENCY", "DELW1", "DELW2", "DELW3",                              
+  #"ABSTRAN", "ABSMEAS", "DELW4", "DELW5",                               
+  #"DATE", "MONTH", "YEAR", "DAY", "PLACE", "CITY"       
+#)
+```
+
+# Examine final data scores with current raw MOCA scores
+```{r}
+class(moca_scored$USERDATE)   # Will return "character", "factor", "Date", etc.
+typeof(moca_scored$USERDATE)  # Gives low-level type info (e.g., "character")
+str(moca_scored$USERDATE)     # Shows structure and a preview of values
+
+head(moca_scored$USERDATE)    # First 6 values
+unique(moca_scored$USERDATE)  # All unique values (or sample of them)
+
+# First, filter your raw MOCA scores to match SCRNOs in ADNI
+moca_filtered <- moca_scored %>%
+  filter(SCRNO %in% ADNI$SCRNO) %>%
+  arrange(SCRNO, USERDATE) %>%         # sort by SCRNO and date
+  group_by(SCRNO) %>%
+  slice_head(n = 1) %>%                # take first observation per SCRNO
+  ungroup() %>%
+  select(SCRNO, raw_total_score)       # just keep what you need
+
+# Now pull only the SCRNO and MOCA columns from the final dataset
+adni_moca <- ADNI %>%
+  select(SCRNO, MOCA)
+
+# Join them together
+moca_comparison <- left_join(adni_moca, moca_filtered, by = "SCRNO")
+
+# View mismatches
+mismatched <- moca_comparison %>%
+  filter(MOCA != raw_total_score)
+
+print(moca_comparison)
+print(mismatched)
+```
+
+# CAPS info - not necessary
+
+```{r}
+# Possible duplicates
+CAPSl_filtered %>% 
+  count(SCRNO) %>% 
+  filter(n > 1)
+
+CAPSc_filtered %>% 
+  count(SCRNO) %>% 
+  filter(n > 1)
+
+# Keep the rows with the least missing data
+CAPSl_filtered <- CAPSl_filtered %>%
+  mutate(non_missing = rowSums(!is.na(across(everything())))) %>%
+  group_by(SCRNO) %>%
+  slice_max(non_missing, with_ties = FALSE) %>%
+  ungroup() %>%
+  select(-non_missing)
+
+CAPSc_filtered <- CAPSc_filtered %>%
+  mutate(non_missing = rowSums(!is.na(across(everything())))) %>%
+  group_by(SCRNO) %>%
+  slice_max(non_missing, with_ties = FALSE) %>%
+  ungroup() %>%
+  select(-non_missing)
+```
+
+## This does not matter because they did not use these data sets for PTSD categorizations!!
+```{r}
+# CAPS current
+# Categorize CAPSSCORE as PTSD present (above 40) or absent (below 40)
+CAPSc_filtered <- CAPSc_filtered %>%
+  mutate(
+    PTSD_status = if_else(CAPSSCORE > 40, "current PTSD present", "current PTSD absent")
+  )
+# Check the categorization
+table(CAPSc_filtered$PTSD_status)
+
+CAPSl_filtered <- CAPSl_filtered %>%
+  mutate(
+    PTSD_status = if_else(CAPSSCORE > 40, "life PTSD present", "life PTSD absent")
+  )
+# Check the categorization
+table(CAPSl_filtered$PTSD_status)
+
+# Add the CAPS scores to the ADNI data set
+# Step 1: Remove blank columns from ADNI data
+adni_clean <- ADNI %>%
+  select(where(~!all(is.na(.))))  # Remove columns that are entirely NA
+
+# Step 2: Add CAPSSCORE from CAPSc_filtered (current), rename before the join
+adni_with_current_CAPS <- adni_clean %>%
+  left_join(
+    CAPSc_filtered %>%
+      select(SCRNO, current_CAPSSCORE = CAPSSCORE),
+    by = "SCRNO"
+  )
+
+# Step 3: Add CAPSSCORE from CAPSl_filtered (lifetime), rename before the join
+adni_with_both_CAPS <- adni_with_current_CAPS %>%
+  left_join(
+    CAPSl_filtered %>%
+      select(SCRNO, lifetime_CAPSSCORE = CAPSSCORE),
+    by = "SCRNO"
+  )
+
+# Step 4: Check the result
+head(adni_with_both_CAPS)
+```
